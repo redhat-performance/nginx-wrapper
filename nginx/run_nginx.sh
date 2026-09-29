@@ -229,9 +229,6 @@ create_summary_file()
 		tfsec_total=0
 		for file in $(ls nginx_results_*threads_${cns}_cns.data);
 		do
-			if [[ $file == "" ]]; then
-				continue
-			fi
 			rsec=$(grep "Requests/sec:" $file | cut -d: -f 2 | sed "s/ //g" | cut -d'.' -f 1)
 			let "rsec_total=${rsec_total}+${rsec}"
 			tfsec_info=$(grep "Transfer/sec" $file | cut -d: -f2-)
@@ -361,22 +358,19 @@ if [[ ! -f /etc/nginx/nginx.conf_orig ]]; then
 	sed "s/access_log  \/var\/log\/nginx\/access.log  main;/access_log off;/g" /etc/nginx/nginx.conf_orig > /etc/nginx/nginx.conf
 	systemctl enable nginx
 	systemctl start nginx
-	if [[ $? -ne 0 ]]; then
-		exit_out "Failed to start nginx" $E_GENERAL
-	fi
-	attempts=0
-	while true
+	retries=0
+	while true;
 	do
-		systemctl status nginx > /dev/null
+		systemctl status nginx | grep -q running
 		if [[ $? -eq 0 ]]; then
 			break
 		fi
-		sleep 5
-		if [[ $attempts -eq 12 ]]; then
-			exit_out "nginx never entered the start state" $E_GENERAL
+		let "retries=${retries}+1"
+		if [[ $retries -eq 6 ]]; then
+	                exit_out "Failed to start nginx" $E_GENERAL
 		fi
-		let "attempts=${attempts}+1"
-	done
+		sleep 10
+	done	
 fi
 
 for iter in $(seq 1 1 $to_times_to_run); do
