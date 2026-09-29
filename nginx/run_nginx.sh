@@ -47,13 +47,11 @@ exit_out()
 }
 
 if [ ! -f "/tmp/${test_name}.out" ]; then
-	command="${0} $@"
-	echo $command
-	$command &> /tmp/${test_name}.out
+	"$0" "$@" &> /tmp/${test_name}.out
 	rtc=$?
 	cat /tmp/${test_name}.out
 	rm /tmp/${test_name}.out
-	exit $rtc 
+	exit $rtc
 fi
 
 curdir=$(dirname $(realpath $0))
