@@ -120,8 +120,63 @@ else
     fail "Pre-set non-'1' environment variable incorrectly skipped wrapper"
 fi
 
-# Test 7: Actual wrapper validation
-echo "Test 7: Actual wrapper validation"
+# Test 7: mktemp failure handling
+echo "Test 7: mktemp failure handling"
+cat > "$TEST_DIR/test_mktemp_fail.sh" << 'EOF'
+#!/bin/bash
+exit_out() { echo "$1"; exit "$2"; }
+if [ "${NGINX_WRAPPER_REEXEC:-0}" != "1" ]; then
+    # Simulate mktemp failure by using a function that always fails
+    mktemp() { return 1; }
+    log_file=$(mktemp /tmp/nginx.XXXXXX.out) || exit_out "Failed to create temp log file" 1
+    echo "Should not reach here"
+fi
+echo "SECOND_ENTRY"
+EOF
+chmod +x "$TEST_DIR/test_mktemp_fail.sh"
+output=$("$TEST_DIR/test_mktemp_fail.sh" 2>&1 || true)
+if echo "$output" | grep -q "Failed to create temp log file"; then
+    pass "mktemp failure triggers error message"
+else
+    fail "mktemp failure not handled correctly"
+fi
+if ! echo "$output" | grep -q "SECOND_ENTRY"; then
+    pass "Script exits on mktemp failure (doesn't continue)"
+else
+    fail "Script continued after mktemp failure"
+fi
+
+# Test 8: EXIT trap cleanup verification
+echo "Test 8: EXIT trap cleanup verification"
+cat > "$TEST_DIR/test_trap.sh" << 'EOF'
+#!/bin/bash
+if [ "${NGINX_WRAPPER_REEXEC:-0}" != "1" ]; then
+    log_file=$(mktemp /tmp/nginx.XXXXXX.out) || exit 1
+    trap 'rm -f "$log_file"; echo "CLEANUP:$log_file" >&2' EXIT
+    NGINX_WRAPPER_REEXEC=1 "$0" "$@" &> "$log_file"
+    rtc=$?
+    cat "$log_file"
+    exit $rtc
+fi
+echo "SUCCESS"
+EOF
+chmod +x "$TEST_DIR/test_trap.sh"
+output=$("$TEST_DIR/test_trap.sh" 2>&1)
+if echo "$output" | grep -q "CLEANUP:/tmp/nginx\."; then
+    pass "EXIT trap executes on normal exit"
+else
+    fail "EXIT trap did not execute"
+fi
+# Verify the temp file was actually deleted
+temp_file=$(echo "$output" | grep "CLEANUP:" | cut -d: -f2)
+if [ -n "$temp_file" ] && [ ! -f "$temp_file" ]; then
+    pass "EXIT trap successfully deleted temp file"
+else
+    fail "EXIT trap did not delete temp file"
+fi
+
+# Test 9: Actual wrapper validation
+echo "Test 9: Actual wrapper validation"
 WRAPPER_SCRIPT="$SCRIPT_DIR/run_nginx.sh"
 
 # Subtest 7a: Syntax validation
