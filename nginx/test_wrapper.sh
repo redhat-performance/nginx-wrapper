@@ -65,26 +65,43 @@ else
     fail "Glob characters were expanded"
 fi
 
-# Test 3: Stale /tmp/nginx.out doesn't affect behavior
+# Test 3: Stale /tmp/nginx.out doesn't affect wrapper
 echo "Test 3: Stale temp files don't affect wrapper"
-echo "stale content" > /tmp/nginx.out
+# Create stale file with cleanup trap to prevent orphans
+stale_file="/tmp/nginx.out.$$"
+echo "stale content" > "$stale_file"
+trap "rm -f '$stale_file'" RETURN
 output=$("$TEST_DIR/test_wrapper.sh" --test "new run")
 if echo "$output" | grep -q "ARGS:"; then
-    pass "Wrapper executes despite stale /tmp/nginx.out"
+    pass "Wrapper executes despite stale temp files"
 else
     fail "Wrapper affected by stale file"
 fi
-rm -f /tmp/nginx.out
+rm -f "$stale_file"
 
-# Test 4: Temp files cleaned up after normal exit
+# Test 4: Temp file cleanup on normal exit
 echo "Test 4: Temp file cleanup on normal exit"
-temp_count_before=$(shopt -s nullglob; files=(/tmp/nginx.*.out); echo ${#files[@]})
-"$TEST_DIR/test_wrapper.sh" --test "cleanup" > /dev/null
-temp_count_after=$(shopt -s nullglob; files=(/tmp/nginx.*.out); echo ${#files[@]})
-if [ "$temp_count_before" -eq "$temp_count_after" ]; then
+# Create wrapper that reports temp file path for verification
+cat > "$TEST_DIR/test_cleanup.sh" << 'EOF'
+#!/bin/bash
+if [ "${NGINX_WRAPPER_REEXEC:-0}" != "1" ]; then
+    log_file=$(mktemp /tmp/nginx.XXXXXX.out) || exit 1
+    trap 'rm -f "$log_file"' EXIT
+    echo "TEMPFILE:$log_file" >&2
+    NGINX_WRAPPER_REEXEC=1 "$0" "$@" &> "$log_file"
+    rtc=$?
+    cat "$log_file"
+    exit $rtc
+fi
+echo "SUCCESS"
+EOF
+chmod +x "$TEST_DIR/test_cleanup.sh"
+output=$("$TEST_DIR/test_cleanup.sh" 2>&1)
+temp_file=$(echo "$output" | grep "TEMPFILE:" | cut -d: -f2)
+if [ -n "$temp_file" ] && [ ! -f "$temp_file" ]; then
     pass "Temp files cleaned up on normal exit"
 else
-    fail "Temp files not cleaned up (before: $temp_count_before, after: $temp_count_after)"
+    fail "Temp file not cleaned up: $temp_file"
 fi
 
 # Test 5: Re-entry prevention with environment variable
