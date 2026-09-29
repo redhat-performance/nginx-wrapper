@@ -46,9 +46,9 @@ exit_out()
 	exit $2
 }
 
-if [ -z "$NGINX_WRAPPER_REEXEC" ]; then
-	log_file=$(mktemp /tmp/nginx.XXXXXX.out)
-	trap 'rm -f "$log_file"' EXIT INT TERM
+if [ "${NGINX_WRAPPER_REEXEC:-0}" != "1" ]; then
+	log_file=$(mktemp /tmp/nginx.XXXXXX.out) || exit_out "Failed to create temp log file" 1
+	trap 'rm -f "$log_file"' EXIT
 	NGINX_WRAPPER_REEXEC=1 "$0" "$@" &> "$log_file"
 	rtc=$?
 	cat "$log_file"

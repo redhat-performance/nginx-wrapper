@@ -111,10 +111,10 @@ fi
 # Test 6: Pre-set NGINX_WRAPPER_REEXEC=something doesn't skip wrapper
 echo "Test 6: Pre-set environment variable handled correctly"
 output=$(NGINX_WRAPPER_REEXEC=garbage "$TEST_DIR/reentry_test.sh")
-if echo "$output" | grep -q "SECOND_ENTRY" && ! echo "$output" | grep -q "FIRST_ENTRY"; then
-    pass "Non-'1' value correctly treated as already re-entered"
+if echo "$output" | grep -q "FIRST_ENTRY" && echo "$output" | grep -q "SECOND_ENTRY"; then
+    pass "Non-'1' value correctly enters wrapper (doesn't skip)"
 else
-    fail "Pre-set environment variable not handled correctly"
+    fail "Pre-set non-'1' environment variable incorrectly skipped wrapper"
 fi
 
 # Test 7: Syntax validation
