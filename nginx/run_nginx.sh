@@ -46,14 +46,13 @@ exit_out()
 	exit $2
 }
 
-if [ ! -f "/tmp/${test_name}.out" ]; then
-	command="${0} $@"
-	echo $command
-	$command &> /tmp/${test_name}.out
+if [ "${NGINX_WRAPPER_REEXEC:-0}" != "1" ]; then
+	log_file=$(mktemp /tmp/nginx.XXXXXX.out) || exit_out "Failed to create temp log file" 1
+	trap 'rm -f "$log_file"' EXIT
+	NGINX_WRAPPER_REEXEC=1 "$0" "$@" &> "$log_file"
 	rtc=$?
-	cat /tmp/${test_name}.out
-	rm /tmp/${test_name}.out
-	exit $rtc 
+	cat "$log_file"
+	exit $rtc
 fi
 
 curdir=$(dirname $(realpath $0))
