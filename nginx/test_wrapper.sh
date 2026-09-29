@@ -6,6 +6,9 @@
 
 set -euo pipefail
 
+# Resolve script directory before changing directories
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+
 TEST_DIR=$(mktemp -d /tmp/nginx_test.XXXXXX)
 trap 'rm -rf "$TEST_DIR"' EXIT
 
@@ -117,12 +120,41 @@ else
     fail "Pre-set non-'1' environment variable incorrectly skipped wrapper"
 fi
 
-# Test 7: Syntax validation
-echo "Test 7: Actual script syntax validation"
-if bash -n /home/gdumas/repos/nginx-wrapper/nginx/run_nginx.sh 2>/dev/null; then
+# Test 7: Actual wrapper validation
+echo "Test 7: Actual wrapper validation"
+WRAPPER_SCRIPT="$SCRIPT_DIR/run_nginx.sh"
+
+# Subtest 7a: Syntax validation
+if bash -n "$WRAPPER_SCRIPT" 2>/dev/null; then
     pass "bash -n passes on actual script"
 else
     fail "Syntax errors in actual script"
+fi
+
+# Subtest 7b: Verify actual wrapper uses correct patterns
+wrapper_content=$(cat "$WRAPPER_SCRIPT")
+if echo "$wrapper_content" | grep -q 'if \[ "\${NGINX_WRAPPER_REEXEC:-0}" != "1" \]; then'; then
+    pass "Wrapper uses strict re-entry check"
+else
+    fail "Wrapper missing strict re-entry check"
+fi
+
+if echo "$wrapper_content" | grep -q 'NGINX_WRAPPER_REEXEC=1 "\$0" "\$@"'; then
+    pass "Wrapper uses quoted reexec pattern"
+else
+    fail "Wrapper missing quoted reexec pattern"
+fi
+
+if echo "$wrapper_content" | grep -q 'mktemp.*|| exit_out'; then
+    pass "Wrapper has mktemp error handling"
+else
+    fail "Wrapper missing mktemp error handling"
+fi
+
+if echo "$wrapper_content" | grep -q "trap.*EXIT" && ! echo "$wrapper_content" | grep -q "trap.*INT.*TERM"; then
+    pass "Wrapper uses EXIT-only trap"
+else
+    fail "Wrapper trap pattern incorrect"
 fi
 
 echo
