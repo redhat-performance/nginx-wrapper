@@ -67,10 +67,9 @@ fi
 
 # Test 3: Stale /tmp/nginx.out doesn't affect wrapper
 echo "Test 3: Stale temp files don't affect wrapper"
-# Create stale file with cleanup trap to prevent orphans
+# Create stale file with explicit cleanup (RETURN trap doesn't work at script level)
 stale_file="/tmp/nginx.out.$$"
 echo "stale content" > "$stale_file"
-trap "rm -f '$stale_file'" RETURN
 output=$("$TEST_DIR/test_wrapper.sh" --test "new run")
 if echo "$output" | grep -q "ARGS:"; then
     pass "Wrapper executes despite stale temp files"
@@ -196,14 +195,14 @@ fi
 echo "Test 9: Actual wrapper validation"
 WRAPPER_SCRIPT="$SCRIPT_DIR/run_nginx.sh"
 
-# Subtest 7a: Syntax validation
+# Syntax validation
 if bash -n "$WRAPPER_SCRIPT" 2>/dev/null; then
     pass "bash -n passes on actual script"
 else
     fail "Syntax errors in actual script"
 fi
 
-# Subtest 7b: Verify actual wrapper uses correct patterns
+# Verify actual wrapper uses correct patterns
 wrapper_content=$(cat "$WRAPPER_SCRIPT")
 if echo "$wrapper_content" | grep -q 'if \[ "\${NGINX_WRAPPER_REEXEC:-0}" != "1" \]; then'; then
     pass "Wrapper uses strict re-entry check"
