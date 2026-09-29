@@ -46,11 +46,12 @@ exit_out()
 	exit $2
 }
 
-if [ ! -f "/tmp/${test_name}.out" ]; then
-	"$0" "$@" &> /tmp/${test_name}.out
+if [ -z "$NGINX_WRAPPER_REEXEC" ]; then
+	log_file=$(mktemp /tmp/nginx.XXXXXX.out)
+	trap 'rm -f "$log_file"' EXIT INT TERM
+	NGINX_WRAPPER_REEXEC=1 "$0" "$@" &> "$log_file"
 	rtc=$?
-	cat /tmp/${test_name}.out
-	rm /tmp/${test_name}.out
+	cat "$log_file"
 	exit $rtc
 fi
 
