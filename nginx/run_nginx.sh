@@ -243,7 +243,12 @@ create_summary_file()
 		done
 		rsec_avg=$(echo ${rsec_total}/$to_times_to_run | bc)
 		tfsec_avg=$(echo ${tfsec_total}/$to_times_to_run | bc)
-		time_file=$(grep "Requests/sec:" nginx_results_*threads_${cns}_cns.data | cut -d: -f 1 | tail -1)
+		#
+		# grep only prefixes matches with "filename:" when 2+ files are given
+		# on the command line, so force -H to keep the filename prefix even
+		# when only one thread count (and therefore one file) qualifies for
+		# this connection count -- e.g. connections=1 with threads=1,2,4,6,8.
+		time_file=$(grep -H "Requests/sec:" nginx_results_*threads_${cns}_cns.data | cut -d: -f 1 | tail -1)
 		stime=$(grep start_time $time_file | cut -d: -f 2- | sed "s/ //g")
 		etime=$(grep end_time $time_file | cut -d: -f 2- | sed "s/ //g")
 		echo ${cns},${rsec_avg},${tfsec_avg},${stime},${etime} >> $results_file
