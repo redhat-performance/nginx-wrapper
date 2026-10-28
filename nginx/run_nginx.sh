@@ -227,6 +227,7 @@ create_summary_file()
 	do
 		rsec_total=0
 		tfsec_total=0
+		file_count=0
 		for file in $(ls nginx_results_*threads_${cns}_cns.data);
 		do
 			if [[ $file == "" ]]; then
@@ -240,9 +241,16 @@ create_summary_file()
 			value=$(echo $tfsec_info | tr -dc '0-9\.')
 			tval=$(${TOOLS_BIN}/convert_val --from_unit $unit --value $value --to_unit K | sed "s/K//g")
 			let "tfsec_total=${tfsec_total}+${tval}"
+			let "file_count=${file_count}+1"
 		done
-		rsec_avg=$(echo ${rsec_total}/$to_times_to_run | bc)
-		tfsec_avg=$(echo ${tfsec_total}/$to_times_to_run | bc)
+		#
+		# For a given connection count, every thread count <= that connection
+		# count is run (see execute_nginx), so file_count here is usually
+		# to_times_to_run multiplied by the number of qualifying thread values,
+		# not just to_times_to_run. Divide by the actual number of matched
+		# files so the average reflects every run it is built from.
+		rsec_avg=$(echo ${rsec_total}/$file_count | bc)
+		tfsec_avg=$(echo ${tfsec_total}/$file_count | bc)
 		time_file=$(grep "Requests/sec:" nginx_results_*threads_${cns}_cns.data | cut -d: -f 1 | tail -1)
 		stime=$(grep start_time $time_file | cut -d: -f 2- | sed "s/ //g")
 		etime=$(grep end_time $time_file | cut -d: -f 2- | sed "s/ //g")
